@@ -40,7 +40,6 @@ defmodule DosProj3 do
     {_, updated_map} =
     Map.get_and_update(updated_map, :successor, fn x -> {x, x ++ input_successors} end)
 
-    IO.inspect updated_map
     {:noreply, updated_map}
   end
 

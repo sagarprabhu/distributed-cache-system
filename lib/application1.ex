@@ -1,5 +1,6 @@
 defmodule Application1 do
   use Application
+  use Bitwise
   @m 10
   def main(args \\ []) do
     Application1.start(
@@ -11,6 +12,15 @@ defmodule Application1 do
     # receive do
     #     {:hi, message} -> IO.puts message
     # end
+  end
+
+  def find_finger(n, node_values) do
+    if n in node_values do
+      n
+    else
+      find_finger(rem((n+1), trunc(:math.pow(2, @m))), node_values)
+    end
+
   end
 
   def start(_type, num_of_nodes, num_of_messages) do
@@ -49,7 +59,7 @@ defmodule Application1 do
       |> Enum.map(fn x -> String.to_integer(x) end)  
       |> IO.inspect
       
-    r = trunc(:math.log2(num_of_nodes)) 
+    r = trunc(:math.log2(num_of_nodes)) * 2 
 
     0..(num_of_nodes - 1)
       |> Enum.to_list
@@ -61,24 +71,30 @@ defmodule Application1 do
             |> Enum.map(
               fn curr_r ->
                 Enum.at(lst, rem(x + curr_r, num_of_nodes))
-              end    
-            )
+              end)
+            |> Enum.map(fn x -> Atom.to_string(x) end)
+            |> Enum.map(fn x -> String.to_integer(x) end)
 
         GenServer.cast(
           Enum.at(lst, x),
-          {:set_neighbours, [Enum.at(lst, x-1)] ++ successors}
+          {:set_neighbours, [Enum.at(lst, x-1) |> Atom.to_string |> String.to_integer] ++ successors}
         )
       end)
     
-    # 0..(num_of_nodes - 1)
-    #   |> Enum.to_list
-    #   |> Enum.each(
-    #     fn x ->
-    #       finger_table =
-    #         1..r
-    #           |> Enum.to_list
-    #           |> Enum.map(find)
-    #     end
-    #   )
+    0..(num_of_nodes - 1)
+      |> Enum.to_list
+      |> Enum.map(
+        fn x ->
+          finger_table =
+            0..@m-1
+              |> Enum.to_list
+              |> Enum.map(fn i ->
+                value_to_find = rem((Enum.at(node_values, x) + trunc(:math.pow(2, i))), trunc(:math.pow(2, @m)))
+                find_finger(value_to_find , node_values)
+              end
+              )
+          GenServer.cast(Enum.at(lst, x), {:set_finger_table, finger_table})
+        end
+      )
   end
 end
