@@ -2,6 +2,27 @@ defmodule Application1 do
   use Application
   use Bitwise
   @m 10
+
+  def get_sliced_hash(val) do
+
+    {decimal_hash, _} =
+      if is_integer(val) do
+        :crypto.hash(:sha, Integer.to_string(val)) |> Base.encode16() |> Integer.parse(16)
+      else
+        :crypto.hash(:sha, val) |> Base.encode16() |> Integer.parse(16)
+      end
+    sliced_hash =
+      decimal_hash |> Integer.to_string(2) |> String.slice(0, @m) |> String.to_integer(2)
+  end
+
+  def find_finger(n, node_values) do
+    if n in node_values do
+      n
+    else
+      find_finger(rem((n+1), trunc(:math.pow(2, @m))), node_values)
+    end
+  end
+
   def main(args \\ []) do
     Application1.start(
       :abc,
@@ -14,26 +35,14 @@ defmodule Application1 do
     # end
   end
 
-  def find_finger(n, node_values) do
-    if n in node_values do
-      n
-    else
-      find_finger(rem((n+1), trunc(:math.pow(2, @m))), node_values)
-    end
-
-  end
-
   def start(_type, num_of_nodes, num_of_messages) do
     children =
       1..num_of_nodes
       |> Enum.to_list()
       |> Enum.map(fn x ->
-        {decimal_hash, _} =
-          :crypto.hash(:sha, Integer.to_string(x)) |> Base.encode16() |> Integer.parse(16)
 
-        sliced_hash =
-          decimal_hash |> Integer.to_string(2) |> String.slice(0, @m) |> String.to_integer(2)
-
+        sliced_hash = get_sliced_hash(x)
+        
         Supervisor.child_spec(
           {DosProj3, [String.to_atom("#{sliced_hash}")]},
           id: String.to_atom("#{sliced_hash}")
@@ -96,5 +105,26 @@ defmodule Application1 do
           GenServer.cast(Enum.at(lst, x), {:set_finger_table, finger_table})
         end
       )
+    
+      1..num_of_messages
+        |> Enum.to_list
+        |> Enum.each(fn x -> make_file([Integer.to_string(x) <> ".mp3"], node_values) end)
+      
+    :timer.sleep(5000)
+    # Check states
+    lst
+      |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
+      
+  end
+
+  def make_file(file_name, node_values) do
+    sliced_hash = get_sliced_hash(file_name)
+
+    value_to_find = rem(sliced_hash, trunc(:math.pow(2, @m)))
+
+    node_as_integer = find_finger(value_to_find, node_values)
+    node_as_atom = node_as_integer |> Integer.to_string |> String.to_atom
+    
+    GenServer.cast(node_as_atom, {:store_file, file_name})
   end
 end

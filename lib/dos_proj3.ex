@@ -48,8 +48,31 @@ defmodule DosProj3 do
     {_, updated_map} =
       Map.get_and_update(current_map, :finger_table, fn x -> {x, x ++ finger_table} end)
   
-    IO.inspect updated_map
     {:noreply, updated_map}
   end
 
+  def handle_cast({:store_file, file_name}, current_map) do
+    {_, updated_map} =
+      Map.get_and_update(current_map, :local_file, fn x -> {x, x ++ file_name} end)
+    
+    GenServer.cast(updated_map.predecessor |> Integer.to_string |> String.to_atom,
+                          {:store_file_as_backup, file_name})
+    
+    GenServer.cast(List.first(updated_map.successor) |> Integer.to_string |> String.to_atom,
+                          {:store_file_as_backup, file_name})
+    
+    {:noreply, updated_map}
+  end
+
+  def handle_cast({:store_file_as_backup, file_name}, current_map) do
+    {_, updated_map} =
+      Map.get_and_update(current_map, :local_file, fn x -> {x, x ++ file_name} end)
+    
+    {:noreply, updated_map}
+  end
+
+  def handle_cast({:print_state}, current_map) do
+    IO.inspect current_map
+    {:noreply, current_map}
+  end
 end
