@@ -15,11 +15,12 @@ defmodule Application1 do
       decimal_hash |> Integer.to_string(2) |> String.slice(0, @m) |> String.to_integer(2)
   end
 
-  def find_finger(n, node_values) do
-    if n in node_values do
+  def find_finger(own_value, n, node_values) do
+    if n in node_values and n != own_value do
       n
     else
-      find_finger(rem(n + 1, trunc(:math.pow(2, @m))), node_values)
+      find_finger(own_value, rem(n + 1, (1 <<< @m)), node_values)
+      # find_finger(own_value, rem(n + 1, trunc(:math.pow(2, @m))), node_values)
     end
   end
 
@@ -97,7 +98,7 @@ defmodule Application1 do
         |> Enum.map(fn i ->
           # value_to_find = rem((Enum.at(node_values, x) + trunc(:math.pow(2, i))), trunc(:math.pow(2, @m)))
           value_to_find = rem(Enum.at(node_values, x) + (1 <<< i), 1 <<< @m)
-          find_finger(value_to_find, node_values)
+          find_finger(Enum.at(node_values, x), value_to_find, node_values)
         end)
 
       GenServer.cast(Enum.at(lst, x), {:set_finger_table, finger_table})
@@ -114,7 +115,7 @@ defmodule Application1 do
     lst
     |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
 
-    # GenServer.cast(Enum.at(lst, 0),  {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
+    GenServer.cast(Enum.at(lst, 0),  {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
   end
 
   def make_file(file_name, node_values) do
@@ -123,7 +124,7 @@ defmodule Application1 do
     # value_to_find = rem(sliced_hash, trunc(:math.pow(2, @m)))
     value_to_find = rem(sliced_hash, 1 <<< @m)
 
-    node_as_integer = find_finger(value_to_find, node_values)
+    node_as_integer = find_finger(:garbage, value_to_find, node_values)
     node_as_atom = node_as_integer |> Integer.to_string() |> String.to_atom()
 
     GenServer.cast(node_as_atom, {:store_file, file_name})

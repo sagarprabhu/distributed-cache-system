@@ -84,23 +84,27 @@ defmodule DosProj3 do
 
     is_file_found = Enum.member?(current_map.local_file, file_name)
 
-    IO.puts is_file_found
+    # IO.puts is_file_found
+    # IO.inspect current_map
 
-    # if not is_file_found do
-    #   node_to_send_to =
-    #     current_map.finger_table
-    #     |> Enum.filter(fn x -> x <= key end)
-    #     |> List.last()
+    if not is_file_found do
+     
+      node_to_send_to = 
+        current_map.finger_table
+          |> Enum.filter(fn x -> x <= key end)
+          |> Enum.max()
 
-    #   node_to_send_to =
-    #     if node_to_send_to == nil, do: Enum.at(current_map.successor, 0), else: node_to_send_to
+      node_to_send_to =
+        if node_to_send_to == nil, do: Enum.at(current_map.successor, 0), else: node_to_send_to
 
-      GenServer.cast(node_to_send_to |> Integer.to_string |> String.to_atom, {:search, [file_name, key, hops_taken + 1]})
+      IO.inspect node_to_send_to
+        GenServer.cast(node_to_send_to |> Integer.to_string |> String.to_atom,
+        {:search, [file_name, key, hops_taken + 1]})
     
     else
       IO.puts("File found in #{hops_taken} hops")
+        
     end
-
     {:noreply, current_map}
   end
 end
