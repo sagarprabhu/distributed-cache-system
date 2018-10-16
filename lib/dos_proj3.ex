@@ -2,10 +2,16 @@ defmodule DosProj3 do
   use GenServer
 
   # External API
-  def start_link([input_name]) do
+  def start_link([input_name, node_value]) do
     GenServer.start_link(
       __MODULE__,
-      %{:finger_table => [], :predecessor => [], :successor => [], :local_file => []},
+      %{
+        :finger_table => [],
+        :predecessor => [],
+        :successor => [],
+        :local_file => [],
+        :current_value => node_value
+      },
       name: input_name
     )
   end
@@ -72,30 +78,44 @@ defmodule DosProj3 do
 
   # Search for file by file_name
   def handle_cast({:search, [file_name, key, hops_taken]}, current_map) do
-
-    IO.inspect current_map
+    IO.inspect(current_map)
 
     is_file_found = Enum.member?(current_map.local_file, file_name)
 
     # IO.inspect is_file_found
 
-    if not is_file_found do 
-      # Send request to the closest node in the finger table which is <= key
-      node_to_send_to = 
-        current_map.finger_table
+    if not is_file_found do
+
+      # # Check for the wrap around
+      # if key > current_map.current_value and Enum.at(current_map.successor, 0) < current_map.current_value do
+      #   # If this is the last node and the key is more than it, send the request to the first node.
+      #   node_to_send_to = Enum.at(current_map.successor, 0)
+        
+      #   GenServer.cast(
+      #     node_to_send_to |> Integer.to_string() |> String.to_atom(),
+      #     {:search, [file_name, key, hops_taken + 1]}
+      #   )
+      
+      # else
+        # Send request to the closest node in the finger table which is <= key
+        node_to_send_to =
+          current_map.finger_table
           |> Enum.filter(fn x -> x <= key end)
-          |> Enum.min_by(fn x -> (key - x) end, fn -> nil end)
-          # |> Enum.max()
-          # |> List.last
+          |> Enum.min_by(fn x -> key - x end, fn -> nil end)
 
-      # If no node <= key exists then send request to the successor
-      node_to_send_to =
-        if node_to_send_to == nil, do: Enum.at(current_map.successor, 0), else: node_to_send_to
+        # |> Enum.max()
+        # |> List.last
 
-      # IO.inspect node_to_send_to
-      GenServer.cast(node_to_send_to |> Integer.to_string |> String.to_atom,
-        {:search, [file_name, key, hops_taken + 1]})
+        # If no node <= key exists then send request to the successor
+        node_to_send_to =
+          if node_to_send_to == nil, do: Enum.at(current_map.successor, 0), else: node_to_send_to
 
+        # IO.inspect node_to_send_to
+        GenServer.cast(
+          node_to_send_to |> Integer.to_string() |> String.to_atom(),
+          {:search, [file_name, key, hops_taken + 1]}
+        ) 
+      # end 
     else
       IO.puts("File found in #{hops_taken} hops")
     end

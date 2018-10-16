@@ -12,6 +12,7 @@ defmodule Application1 do
       else
         :crypto.hash(:sha, val) |> Base.encode16() |> Integer.parse(16)
       end
+
     # Convert to binary and then slice and then convert back to integer.
     sliced_hash =
       decimal_hash |> Integer.to_string(2) |> String.slice(0, @m) |> String.to_integer(2)
@@ -23,13 +24,12 @@ defmodule Application1 do
     if n in node_values and n != own_value do
       n
     else
-      find_finger(own_value, rem(n + 1, (1 <<< @m)), node_values)
+      find_finger(own_value, rem(n + 1, 1 <<< @m), node_values)
     end
   end
-  
+
   # Function to store a file in the network
   def make_file(file_name, node_values) do
-
     # Get key using the same logic as for nodes
     sliced_hash = get_sliced_hash(file_name)
 
@@ -42,6 +42,30 @@ defmodule Application1 do
 
     # Store file at node
     GenServer.cast(node_as_atom, {:store_file, file_name})
+  end
+
+  # Add new node to the chord supervised by supervisor
+  # The value of the node should be <= 2^m
+  def add_node(supervisor, node_value) when node_value < 1 <<< @m do
+    Supervisor.start_child(
+      supervisor,
+      Supervisor.child_spec(
+        {DosProj3, [String.to_atom("#{node_value}"), node_value]},
+        id: String.to_atom("#{node_value}")
+      )
+    )
+
+    # Check the new supervisor children list
+    IO.inspect(Supervisor.which_children(supervisor))
+  end
+
+  # Search for file file_name
+  # A list of all chord nodes has to be passed(Nodes as atoms not node_values)
+  def search(lst_of_chord_nodes, file_name) when is_binary(file_name) do
+    GenServer.cast(
+      Enum.at(lst_of_chord_nodes, 0),
+      {:search, [file_name, get_sliced_hash(file_name), 0]}
+    )
   end
 
   def main(args \\ []) do
@@ -64,7 +88,7 @@ defmodule Application1 do
         sliced_hash = get_sliced_hash(x)
 
         Supervisor.child_spec(
-          {DosProj3, [String.to_atom("#{sliced_hash}")]},
+          {DosProj3, [String.to_atom("#{sliced_hash}"), sliced_hash]},
           id: String.to_atom("#{sliced_hash}")
         )
       end)
@@ -82,6 +106,7 @@ defmodule Application1 do
       |> Enum.sort()
       |> Enum.map(fn x -> Integer.to_string(x) end)
       |> Enum.map(fn x -> String.to_atom(x) end)
+      |> IO.inspect()
 
     # list to hold node values as integers for find_successor, closest_preceding_node functions
     node_values =
@@ -137,15 +162,15 @@ defmodule Application1 do
     make_file(["abc.mp3"], node_values)
     make_file(["test"], node_values)
 
-    # Check states for Debugging
-    :timer.sleep(5000)
-    lst
-    |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
+    # # Check states for Debugging
+    # :timer.sleep(5000)
+    # lst
+    # |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
 
     # Search for file
-    GenServer.cast(Enum.at(lst, 0),  {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
-    # GenServer.cast(Enum.at(lst, 0),  {:search, ["test", get_sliced_hash("test"), 0]})
+    GenServer.cast(Enum.at(lst, 0), {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
+    search(lst, "test")
 
+    add_node(supervisor, 50)
   end
 end
- 
