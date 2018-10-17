@@ -28,6 +28,22 @@ defmodule Application1 do
     end
   end
 
+  # Finds the immediate successor for n in node_values
+  # The value of the node should be <= 2^m
+  # This works like find_finger
+  def find_immediate_successor(n, node_values) when n < (1 <<< @m)  do
+
+    # # Recursive way
+    # if n in node_values, do: n, else: find_immediate_successor(rem(n + 1, 1 <<< @m), node_values)
+    
+    # Non-recursive way (using filter and min_by)
+    if n > Enum.at(node_values, -1) do
+      Enum.at(node_values, 0)
+    else
+      node_values |> Enum.filter(fn x -> x > n end) |> Enum.min_by(fn x -> x - n end, fn -> nil end)
+    end
+  end
+
   # Function to store a file in the network
   def make_file(file_name, node_values) do
     # Get key using the same logic as for nodes
@@ -44,19 +60,25 @@ defmodule Application1 do
     GenServer.cast(node_as_atom, {:store_file, file_name})
   end
 
-  # Add new node to the chord supervised by supervisor
+  # Add new node to the chord supervised by supervisor and return Sorted Node List
   # The value of the node should be <= 2^m
-  def add_node(supervisor, node_value) when node_value < 1 <<< @m do
+  def add_node(supervisor, n) when n < (1 <<< @m) do
     Supervisor.start_child(
       supervisor,
       Supervisor.child_spec(
-        {DosProj3, [String.to_atom("#{node_value}"), node_value]},
-        id: String.to_atom("#{node_value}")
+        {DosProj3, [String.to_atom("#{n}"), n]},
+        id: String.to_atom("#{n}")
       )
     )
 
     # Check the new supervisor children list
     IO.inspect(Supervisor.which_children(supervisor))
+
+    # sorted node values
+    node_values = get_sorted_nodes(supervisor) |> get_values_from_atoms
+
+    # Get successor.
+    find_immediate_successor(n, node_values)
   end
 
   # Search for file file_name
@@ -66,6 +88,23 @@ defmodule Application1 do
       Enum.at(lst_of_chord_nodes, 0),
       {:search, [file_name, get_sliced_hash(file_name), 0]}
     )
+  end
+
+  # Return list of all nodes of the supervisor in sorted order in Atom form
+  def get_sorted_nodes(supervisor) do
+      Supervisor.which_children(supervisor)
+        |> Enum.map(fn x -> elem(x, 0) end)
+        |> Enum.map(fn x -> Atom.to_string(x) end)
+        |> Enum.map(fn x -> String.to_integer(x) end)
+        |> Enum.sort()
+        |> Enum.map(fn x -> Integer.to_string(x) end)
+        |> Enum.map(fn x -> String.to_atom(x) end)
+  end
+
+  def get_values_from_atoms(lst) do
+    lst 
+      |> Enum.map(fn x -> Atom.to_string(x) end)
+      |> Enum.map(fn x -> String.to_integer(x) end)
   end
 
   def main(args \\ []) do
@@ -98,22 +137,10 @@ defmodule Application1 do
 
     # List of all Nodes in a sorted order
     # Need sorting to maintain order in the ring
-    lst =
-      Supervisor.which_children(supervisor)
-      |> Enum.map(fn x -> elem(x, 0) end)
-      |> Enum.map(fn x -> Atom.to_string(x) end)
-      |> Enum.map(fn x -> String.to_integer(x) end)
-      |> Enum.sort()
-      |> Enum.map(fn x -> Integer.to_string(x) end)
-      |> Enum.map(fn x -> String.to_atom(x) end)
-      |> IO.inspect()
-
+    lst = get_sorted_nodes(supervisor) |> IO.inspect
+     
     # list to hold node values as integers for find_successor, closest_preceding_node functions
-    node_values =
-      lst
-      |> Enum.map(fn x -> Atom.to_string(x) end)
-      |> Enum.map(fn x -> String.to_integer(x) end)
-      |> IO.inspect()
+    node_values = get_values_from_atoms(lst) |> IO.inspect()
 
     # Number of successors for failure handling(r) = 2 * log n 
     r = trunc(:math.log2(num_of_nodes)) * 2
