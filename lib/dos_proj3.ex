@@ -157,6 +157,21 @@ defmodule DosProj3 do
     {:noreply, updated_map}
   end
 
+  def handle_cast({:set_successor_list, list_of_successors}, current_map) do
+    num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2) 
+    
+    full_list = current_map.successor ++ list_of_successors  
+    sliced_list =
+      if length(full_list) > trunc(:math.log2(num_of_nodes)) * 2 do
+        Enum.slice(full_list, 0, trunc(:math.log2(num_of_nodes)) * 2) 
+      end
+
+      {_, updated_map} =
+      Map.get_and_update(current_map, :successor, fn x -> {x, sliced_list} end)
+
+    {:noreply, updated_map}
+  end
+
   def handle_call(:get_finger_table, _from, current_map) do
     successors_finger_table = current_map.finger_table
     {:reply, successors_finger_table, current_map}
@@ -168,5 +183,9 @@ defmodule DosProj3 do
 
   def handle_call(:get_files, _from, current_map) do
     {:reply, current_map.local_file, current_map}
+  end
+
+  def handle_call(:get_successor_list, _from, current_map) do
+    {:reply, current_map.successor, current_map}
   end
 end

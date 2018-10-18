@@ -100,6 +100,10 @@ defmodule Application1 do
     GenServer.cast(successors_predecessor_atom, {:set_successor, n})
     GenServer.cast(ip_node_as_atom, {:set_successor, immediate_successor_integer})
 
+    # Set current nodes successors as list of successors of the next node
+    successors_successor_list = GenServer.call(immediate_successor_atom, :get_successor_list)
+    GenServer.cast(ip_node_as_atom, {:set_successor_list, successors_successor_list})
+
     # Get successors finger table
     successors_finger_table = GenServer.call(immediate_successor_atom, :get_finger_table)
     # set current nodes finger table
