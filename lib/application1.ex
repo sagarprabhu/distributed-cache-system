@@ -64,12 +64,11 @@ defmodule Application1 do
   # Add new node to the chord supervised by supervisor and return Sorted Node List
   # The value of the node should be <= 2^m
   def add_node(supervisor, n) when n < 1 <<< @m do
-
     # Increase the number of nodes global counter
-    global_num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2) 
-    :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes + 1} )
+    global_num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
+    :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes + 1})
 
-    ip_node_as_atom = n |> Integer.to_string |> String.to_atom
+    ip_node_as_atom = n |> Integer.to_string() |> String.to_atom()
 
     # Add this node to the chord supervisor
     Supervisor.start_child(
@@ -87,11 +86,16 @@ defmodule Application1 do
     node_values = get_sorted_nodes(supervisor) |> get_values_from_atoms
 
     # Get successor and predecessor
-    immediate_successor_integer = find_immediate_successor(n, node_values) 
-    immediate_successor_atom = immediate_successor_integer |> Integer.to_string |> String.to_atom
+    immediate_successor_integer = find_immediate_successor(n, node_values)
+
+    immediate_successor_atom =
+      immediate_successor_integer |> Integer.to_string() |> String.to_atom()
+
     successors_predecessor_integer = GenServer.call(immediate_successor_atom, :get_predecessor)
-    successors_predecessor_atom = successors_predecessor_integer |> Integer.to_string |> String.to_atom
-    
+
+    successors_predecessor_atom =
+      successors_predecessor_integer |> Integer.to_string() |> String.to_atom()
+
     # Set predecessors
     GenServer.cast(immediate_successor_atom, {:set_predecessor, n})
     GenServer.cast(ip_node_as_atom, {:set_predecessor, successors_predecessor_integer})
@@ -109,18 +113,23 @@ defmodule Application1 do
     # set current nodes finger table
     GenServer.cast(ip_node_as_atom, {:set_finger_table, successors_finger_table})
 
+    # Fix fingers and start the scheduled process
+    Kernel.send(ip_node_as_atom, :fix_finger_table)
+
     # Get successors local files
     successors_local_files = GenServer.call(immediate_successor_atom, :get_files)
-    files_to_store = 
+
+    files_to_store =
       successors_local_files
-        |> Enum.filter(fn x -> get_sliced_hash(x) > successors_predecessor_integer and get_sliced_hash(x) <= n end)
+      |> Enum.filter(fn x ->
+        get_sliced_hash(x) > successors_predecessor_integer and get_sliced_hash(x) <= n
+      end)
 
     # Store files
-    GenServer.cast(ip_node_as_atom ,{:store_file_as_backup, files_to_store})
+    GenServer.cast(ip_node_as_atom, {:store_file_as_backup, files_to_store})
 
     # Print state for debugging
     GenServer.cast(ip_node_as_atom, {:print_state})
-
   end
 
   # Search for file file_name
@@ -162,10 +171,9 @@ defmodule Application1 do
   end
 
   def start(_type, num_of_nodes, num_of_messages) do
-
     # Create new table named global values for storing the number of nodes
     :ets.new(:global_values, [:named_table])
-    :ets.insert(:global_values, {:num_of_nodes, num_of_nodes} )
+    :ets.insert(:global_values, {:num_of_nodes, num_of_nodes})
 
     children =
       1..num_of_nodes
@@ -237,14 +245,23 @@ defmodule Application1 do
     make_file(["test"], node_values)
 
     # # Check states for Debugging
-    # :timer.sleep(5000)
+    :timer.sleep(5000)
     # lst
     # |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
+
+    # # Start scheduled process for fix_finger_table
+    0..(num_of_nodes - 1)
+    |> Enum.to_list()
+    |> Enum.each(fn x ->  Process.send_after(Enum.at(lst, x), :fix_finger_table, 1_000) end)
+
 
     # Search for file
     GenServer.cast(Enum.at(lst, 0), {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
     search(lst, "test")
 
     add_node(supervisor, 774)
+    # add_node(supervisor, 950)
+    add_node(supervisor, 951)
+    add_node(supervisor, 952)
   end
 end

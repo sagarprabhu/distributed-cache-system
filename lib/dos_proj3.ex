@@ -1,5 +1,6 @@
 defmodule DosProj3 do
   use GenServer
+  use Bitwise
 
   # External API
   def start_link([input_name, node_value]) do
@@ -7,7 +8,7 @@ defmodule DosProj3 do
       __MODULE__,
       %{
         :finger_table => [],
-        :predecessor => [],
+        :predecessor => nil,
         :successor => [],
         :local_file => [],
         :current_value => node_value
@@ -26,7 +27,7 @@ defmodule DosProj3 do
     [input_predecessor | input_successors] = list_neighbours
 
     {_, updated_map} =
-      Map.get_and_update(current_map, :predecessor, fn x -> {x, x ++ input_predecessor} end)
+      Map.get_and_update(current_map, :predecessor, fn x -> {x, input_predecessor} end)
 
     {_, updated_map} =
       Map.get_and_update(updated_map, :successor, fn x -> {x, x ++ input_successors} end)
@@ -36,11 +37,11 @@ defmodule DosProj3 do
 
   # Sets finger table by appending 
   def handle_cast({:set_finger_table, finger_table}, current_map) do
+    # Map.get_and_update(current_map, :finger_table, fn x -> {x, x ++ finger_table} end)
     {_, updated_map} =
-      # Map.get_and_update(current_map, :finger_table, fn x -> {x, x ++ finger_table} end)
       Map.get_and_update(current_map, :finger_table, fn x -> {x, finger_table} end)
 
-      IO.inspect updated_map
+    IO.inspect(updated_map)
     {:noreply, updated_map}
   end
 
@@ -126,7 +127,7 @@ defmodule DosProj3 do
 
   def handle_cast({:set_predecessor, node_to_set_as_predecessor}, current_map) do
     {_, updated_map} =
-      Map.get_and_update(current_map, :predecessor, fn x -> {x, [node_to_set_as_predecessor]} end)
+      Map.get_and_update(current_map, :predecessor, fn x -> {x, node_to_set_as_predecessor} end)
 
     IO.inspect(updated_map)
 
@@ -134,23 +135,18 @@ defmodule DosProj3 do
   end
 
   def handle_cast({:set_successor, node_to_set_as_successor}, current_map) do
+    num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
 
-    num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2) 
-    
     {_, updated_map} =
-    if length(current_map.successor) >= trunc(:math.log2(num_of_nodes)) * 2 do
-      Map.get_and_update(current_map, :successor, fn x ->
-        {x,
-         List.insert_at(x, 0, node_to_set_as_successor) |> List.delete_at(-1)
-        }
-      end)
-    else
-      Map.get_and_update(current_map, :successor, fn x ->
-        {x,
-         List.insert_at(x, 0, node_to_set_as_successor)
-        }
-      end)
-    end
+      if length(current_map.successor) >= trunc(:math.log2(num_of_nodes)) * 2 do
+        Map.get_and_update(current_map, :successor, fn x ->
+          {x, List.insert_at(x, 0, node_to_set_as_successor) |> List.delete_at(-1)}
+        end)
+      else
+        Map.get_and_update(current_map, :successor, fn x ->
+          {x, List.insert_at(x, 0, node_to_set_as_successor)}
+        end)
+      end
 
     IO.inspect(updated_map)
 
@@ -158,27 +154,59 @@ defmodule DosProj3 do
   end
 
   def handle_cast({:set_successor_list, list_of_successors}, current_map) do
-    num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2) 
-    
-    full_list = current_map.successor ++ list_of_successors  
+    num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
+
+    full_list = current_map.successor ++ list_of_successors
+
     sliced_list =
       if length(full_list) > trunc(:math.log2(num_of_nodes)) * 2 do
-        Enum.slice(full_list, 0, trunc(:math.log2(num_of_nodes)) * 2) 
+        Enum.slice(full_list, 0, trunc(:math.log2(num_of_nodes)) * 2)
       end
 
-      {_, updated_map} =
-      Map.get_and_update(current_map, :successor, fn x -> {x, sliced_list} end)
+    {_, updated_map} = Map.get_and_update(current_map, :successor, fn x -> {x, sliced_list} end)
 
     {:noreply, updated_map}
   end
 
+  def handle_info(:fix_finger_table, current_map) do
+    # Get finger table from successor
+    universe =
+      GenServer.call(
+        Enum.at(current_map.successor, 0) |> Integer.to_string() |> String.to_atom(),
+        :get_finger_table
+      )
+
+    # Form a universe of all known nodes for this node
+    universe = current_map.successor ++ universe
+    
+    # Update finger table using the universe as the entire set of nodes in the system
+    updated_finger_table =
+      0..(length(current_map.finger_table) - 1)
+      |> Enum.map(fn x ->
+        value_to_find = rem(current_map.current_value + (1 <<< x), 1 <<< length(current_map.finger_table))
+        Application1.find_finger(current_map.current_value, value_to_find, universe)
+        end)
+
+    {_, updated_map} =
+    Map.get_and_update(current_map, :finger_table, fn x -> {x, updated_finger_table} end)
+
+    # IO.inspect current_map
+    IO.puts "fixed fingertable for #{current_map.current_value}"
+
+    periodic_fix_fingers()
+
+    {:noreply, updated_map}
+  end
+
+  defp periodic_fix_fingers() do
+    Process.send_after(self(), :fix_finger_table, 1_000)
+  end
   def handle_call(:get_finger_table, _from, current_map) do
-    successors_finger_table = current_map.finger_table
-    {:reply, successors_finger_table, current_map}
+    {:reply, current_map.finger_table, current_map}
   end
 
   def handle_call(:get_predecessor, _from, current_map) do
-    {:reply, current_map.predecessor, current_map}    
+    {:reply, current_map.predecessor, current_map}
   end
 
   def handle_call(:get_files, _from, current_map) do
