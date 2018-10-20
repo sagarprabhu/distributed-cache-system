@@ -132,13 +132,25 @@ defmodule Application1 do
     GenServer.cast(ip_node_as_atom, {:print_state})
   end
 
-  # Search for file file_name
+  # Search for files from 1..num_of_messages.mp3
   # A list of all chord nodes has to be passed(Nodes as atoms not node_values)
-  def search(lst_of_chord_nodes, file_name) when is_binary(file_name) do
-    GenServer.cast(
-      Enum.at(lst_of_chord_nodes, 0),
-      {:search, [file_name, get_sliced_hash(file_name), 0]}
-    )
+  def search(lst, num_of_messages) do
+
+  lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+  node_values = get_values_from_atoms(lst)
+
+  node_values 
+    |> Enum.each(fn x -> :ets.insert(:global_values, {x, 0}) end)
+  
+  # Set a global counter for number of nodes
+  :ets.insert(:global_values, {:counter_remaining_nodes, length(lst)})
+  :ets.insert(:global_values, {:total_num_of_hops, 0})
+
+  # Start periodic process for search at every node
+  0..(length(lst) - 1)
+  |> Enum.to_list
+  |> Enum.each(fn x -> Process.send_after(Enum.at(lst, x), {:start_search, num_of_messages, 1}, 0) end )
+
   end
 
   # Return list of all nodes of the supervisor in sorted order in Atom form
@@ -168,6 +180,17 @@ defmodule Application1 do
     # receive do
     #     {:hi, message} -> IO.puts message
     # end
+  end
+
+  def fail_node() do
+
+    # Decrease the number of nodes global counter
+    global_num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
+    :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes + 1})
+
+    send(Process.whereis(:"576"), :kill)
+    IO.inspect "Failed 576"
+    
   end
 
   def start(_type, num_of_nodes, num_of_messages) do
@@ -255,13 +278,30 @@ defmodule Application1 do
     |> Enum.each(fn x ->  Process.send_after(Enum.at(lst, x), :fix_finger_table, 1_000) end)
 
 
-    # Search for file
-    GenServer.cast(Enum.at(lst, 0), {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
-    search(lst, "test")
+    # # Search for file
+    # GenServer.cast(Enum.at(lst, 0), {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
+    # search(lst, "test")
 
     add_node(supervisor, 774)
     # add_node(supervisor, 950)
     add_node(supervisor, 951)
     add_node(supervisor, 952)
+
+    lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+    node_values = get_values_from_atoms(lst)
+
+    # Start periodic process for search at every node
+    search(lst, num_of_messages)
+    
+    # fail 576
+    :timer.sleep(10000)
+    fail_node()
+
+    lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+    node_values = get_values_from_atoms(lst)
+
+    search(lst, num_of_messages)
+    
+
   end
 end

@@ -1,5 +1,5 @@
 defmodule DosProj3 do
-  use GenServer
+  use GenServer, restart: :temporary
   use Bitwise
 
   # External API
@@ -81,7 +81,7 @@ defmodule DosProj3 do
 
   # Search for file by file_name
   def handle_cast({:search, [file_name, key, hops_taken]}, current_map) do
-    IO.inspect(current_map)
+    # IO.inspect(current_map)
 
     is_file_found = Enum.member?(current_map.local_file, file_name)
 
@@ -120,6 +120,8 @@ defmodule DosProj3 do
       end
     else
       IO.puts("File found in #{hops_taken} hops")
+      prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
+      :ets.insert(:global_values, {current_map.current_value, prev_val + hops_taken})
     end
 
     {:noreply, current_map}
@@ -161,6 +163,8 @@ defmodule DosProj3 do
     sliced_list =
       if length(full_list) > trunc(:math.log2(num_of_nodes)) * 2 do
         Enum.slice(full_list, 0, trunc(:math.log2(num_of_nodes)) * 2)
+      else
+        full_list
       end
 
     {_, updated_map} = Map.get_and_update(current_map, :successor, fn x -> {x, sliced_list} end)
@@ -168,16 +172,72 @@ defmodule DosProj3 do
     {:noreply, updated_map}
   end
 
+  # Start search for files from 1..num_of_files
+  def handle_info({:start_search, num_of_files, current_file_index}, current_map) do
+
+    # Stop if num_of_files have been searched
+    if current_file_index <= num_of_files do
+      file_to_search = Integer.to_string(current_file_index) <> ".mp3"
+      GenServer.cast(
+      self(),
+      {:search, [file_to_search, Application1.get_sliced_hash(file_to_search), 0]}
+      )
+      # IO.inspect current_file_index
+      periodic_search(num_of_files, current_file_index + 1)
+    
+    else
+      IO.inspect "search finished for #{current_map.current_value}"
+
+      prev_total_hops = :ets.lookup_element(:global_values, :total_num_of_hops, 2)
+      this_nodes_hops = :ets.lookup_element(current_map.current_value, :num_of_hops, 2)
+      :ets.insert(:global_values, {:total_num_of_hops, prev_total_hops + this_nodes_hops})
+
+      remaining_nodes = :ets.lookup_element(:global_values, :counter_remaining_nodes, 2)
+      remaining_nodes = remaining_nodes - 1
+      if remaining_nodes != 0 do
+        :ets.insert(:global_values, {:counter_remaining_nodes, remaining_nodes})
+      else
+        # calculate average
+        IO.inspect "Average hops taken are #{(prev_total_hops + this_nodes_hops) / :ets.lookup_element(:global_values, :num_of_nodes, 2) * num_of_files}"
+      end
+    end
+    {:noreply, current_map}
+  end
+
+  defp periodic_search(num_of_files, current_file_index) do
+    Process.send_after(self(), {:start_search, num_of_files, current_file_index}, 1_000)
+  end
+
   def handle_info(:fix_finger_table, current_map) do
+
+    num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
+
+    # Update successors to include only alive nodes
+    alive_successors = current_map.successor |> Enum.filter(fn x -> Process.whereis(x |> Integer.to_string |> String.to_atom) != nil end)
+    {_, current_map} = Map.get_and_update(current_map, :successor, fn x -> {x, alive_successors} end)
+
+    # last_successors_successors = GenServer.call(List.last(current_map.successor) |> Integer.to_string |> String.to_atom,
+    #                              :get_successor_list) |> Enum.filter(fn x -> Process.whereis(x |> Integer.to_string |> String.to_atom) != nil end)
+    # full_list = alive_successors ++ last_successors_successors
+
+    # alive_node_list = 
+    #   if length(full_list) > trunc(:math.log2(num_of_nodes)) * 2 do
+    #     Enum.slice(full_list, 0, trunc(:math.log2(num_of_nodes)) * 2)
+    #   else
+    #     full_list
+    #   end
+
+    
     # Get finger table from successor
     universe =
+
       GenServer.call(
         Enum.at(current_map.successor, 0) |> Integer.to_string() |> String.to_atom(),
         :get_finger_table
       )
 
     # Form a universe of all known nodes for this node
-    universe = current_map.successor ++ universe
+    universe = current_map.successor ++ universe |> Enum.filter(fn x -> Process.whereis(x |> Integer.to_string |> String.to_atom) != nil end)
     
     # Update finger table using the universe as the entire set of nodes in the system
     updated_finger_table =
@@ -191,7 +251,7 @@ defmodule DosProj3 do
     Map.get_and_update(current_map, :finger_table, fn x -> {x, updated_finger_table} end)
 
     # IO.inspect current_map
-    IO.puts "fixed fingertable for #{current_map.current_value}"
+    # IO.puts "fixed fingertable for #{current_map.current_value}"
 
     periodic_fix_fingers()
 
@@ -199,8 +259,9 @@ defmodule DosProj3 do
   end
 
   defp periodic_fix_fingers() do
-    Process.send_after(self(), :fix_finger_table, 1_000)
+    Process.send_after(self(), :fix_finger_table, 10_000)
   end
+
   def handle_call(:get_finger_table, _from, current_map) do
     {:reply, current_map.finger_table, current_map}
   end
@@ -215,5 +276,9 @@ defmodule DosProj3 do
 
   def handle_call(:get_successor_list, _from, current_map) do
     {:reply, current_map.successor, current_map}
+  end
+
+  def handle_info(:kill, current_map) do
+    {:stop, :normal, current_map}
   end
 end
