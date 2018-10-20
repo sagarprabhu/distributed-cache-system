@@ -11,7 +11,8 @@ defmodule DosProj3 do
         :predecessor => nil,
         :successor => [],
         :local_file => [],
-        :current_value => node_value
+        :current_value => node_value,
+        :hops_taken => 0,
       },
       name: input_name
     )
@@ -120,8 +121,12 @@ defmodule DosProj3 do
       end
     else
       IO.puts("File found in #{hops_taken} hops")
-      prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
-      :ets.insert(:global_values, {current_map.current_value, prev_val + hops_taken})
+      {_, current_map} =  Map.get_and_update(current_map, :hops_taken, fn x ->
+          {x, x + hops_taken}
+        end)  
+
+      # prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
+      # :ets.insert(:global_values, {current_map.current_value, prev_val + hops_taken})
     end
 
     {:noreply, current_map}
@@ -188,20 +193,22 @@ defmodule DosProj3 do
     else
       IO.inspect "search finished for #{current_map.current_value}"
 
-      prev_total_hops = :ets.lookup_element(:global_values, :total_num_of_hops, 2)
-      this_nodes_hops = :ets.lookup_element(current_map.current_value, :num_of_hops, 2)
-      :ets.insert(:global_values, {:total_num_of_hops, prev_total_hops + this_nodes_hops})
+      prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
+      :ets.insert(:global_values, {current_map.current_value, current_map.hops_taken})
 
       remaining_nodes = :ets.lookup_element(:global_values, :counter_remaining_nodes, 2)
       remaining_nodes = remaining_nodes - 1
-      if remaining_nodes != 0 do
+      if remaining_nodes > 0 do
         :ets.insert(:global_values, {:counter_remaining_nodes, remaining_nodes})
       else
-        # calculate average
-        IO.inspect "Average hops taken are #{(prev_total_hops + this_nodes_hops) / :ets.lookup_element(:global_values, :num_of_nodes, 2) * num_of_files}"
+        calculate_average()
       end
     end
     {:noreply, current_map}
+  end
+
+  defp calculate_average() do
+    
   end
 
   defp periodic_search(num_of_files, current_file_index) do

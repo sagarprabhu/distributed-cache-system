@@ -139,8 +139,9 @@ defmodule Application1 do
   lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
   node_values = get_values_from_atoms(lst)
 
-  node_values 
-    |> Enum.each(fn x -> :ets.insert(:global_values, {x, 0}) end)
+  # # Initialize ets for each node
+  # node_values 
+  #   |> Enum.each(fn x -> :ets.insert(:global_values, {x, 0}) end)
   
   # Set a global counter for number of nodes
   :ets.insert(:global_values, {:counter_remaining_nodes, length(lst)})
