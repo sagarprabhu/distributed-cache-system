@@ -198,7 +198,7 @@ defmodule Application1 do
     # Create new table named global values for storing the number of nodes
     :ets.new(:global_values, [:named_table])
     :ets.insert(:global_values, {:num_of_nodes, num_of_nodes})
-    {_,pid2}=Task.start_link(__MODULE__, :counter,[num_of_nodes,0])
+    {_,pid2}=Task.start_link(__MODULE__, :counter,[num_of_nodes * num_of_messages,0])
 
 
     children =
@@ -294,7 +294,7 @@ defmodule Application1 do
     node_values = get_values_from_atoms(lst)
 
     # Start periodic process for search at every node
-  #  search(lst, num_of_messages)
+  search(lst, num_of_messages)
     
     #fail 576
    # :timer.sleep(20000)
@@ -308,20 +308,20 @@ defmodule Application1 do
 
   end
 
-  def counter(num_of_nodes,sum) do
+  def counter(count,sum) do
 
     receive do
       {:hello, hops} ->
       #  IO.inspect("hops  = #{hops}")
 
         sum = sum + hops
-        num_of_nodes = num_of_nodes - 1
+        count = count - 1
 
-        if num_of_nodes <= 0 do
+        if count <= 0 do
           IO.inspect("sum = #{sum}")
           Process.exit(self(),:normal)
         end
-        counter(num_of_nodes, sum)
+        counter(count, sum)
   end
   end
 end
