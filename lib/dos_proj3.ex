@@ -3,7 +3,7 @@ defmodule DosProj3 do
   use Bitwise
 
   # External API
-  def start_link([input_name, node_value,pid]) do
+  def start_link([input_name, node_value, pid]) do
     GenServer.start_link(
       __MODULE__,
       %{
@@ -88,10 +88,10 @@ defmodule DosProj3 do
     is_file_found = Enum.member?(current_map.local_file, file_name)
 
     # IO.inspect is_file_found
-   # {_,updated_map}=
+    # {_,updated_map}=
     if is_file_found do
-      IO.puts("File found in #{hops_taken} hops")
-      send current_map.pid, {:hello , hops_taken}
+      #   IO.puts("File found in #{hops_taken} hops")
+      send(current_map.pid, {:hello, hops_taken})
 
       # IO.inspect(current_map.hops)
       # Map.get_and_update(current_map, :hops, fn x ->
@@ -132,6 +132,7 @@ defmodule DosProj3 do
           {:search, [file_name, key, hops_taken + 1]}
         )
       end
+
       # prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
       # :ets.insert(:global_values, {current_map.current_value, prev_val + hops_taken})
     end
@@ -199,8 +200,9 @@ defmodule DosProj3 do
       periodic_search(num_of_files, current_file_index + 1)
     else
       IO.inspect("search finished for #{current_map.current_value}")
+      send(current_map.pid, {:hi, "finished"})
 
-     # send current_map.pid, {:hello , current_map.hops}
+      # send current_map.pid, {:hello , current_map.hops}
       # prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
       # :ets.insert(:global_values, {current_map.current_value, current_map.hops_taken})
 
