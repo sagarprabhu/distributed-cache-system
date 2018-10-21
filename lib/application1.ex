@@ -63,7 +63,7 @@ defmodule Application1 do
 
   # Add new node to the chord supervised by supervisor and return Sorted Node List
   # The value of the node should be <= 2^m
-  def add_node(supervisor, n) when n < 1 <<< @m do
+  def add_node(supervisor, n,pid2) when n < 1 <<< @m do
     # Increase the number of nodes global counter
     global_num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
     :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes + 1})
@@ -74,7 +74,7 @@ defmodule Application1 do
     Supervisor.start_child(
       supervisor,
       Supervisor.child_spec(
-        {DosProj3, [String.to_atom("#{n}"), n]},
+        {DosProj3, [String.to_atom("#{n}"), n,pid2]},
         id: String.to_atom("#{n}")
       )
     )
@@ -198,6 +198,8 @@ defmodule Application1 do
     # Create new table named global values for storing the number of nodes
     :ets.new(:global_values, [:named_table])
     :ets.insert(:global_values, {:num_of_nodes, num_of_nodes})
+    {_,pid2}=Task.start_link(__MODULE__, :counter,[num_of_nodes,0])
+
 
     children =
       1..num_of_nodes
@@ -206,7 +208,7 @@ defmodule Application1 do
         sliced_hash = get_sliced_hash(x)
 
         Supervisor.child_spec(
-          {DosProj3, [String.to_atom("#{sliced_hash}"), sliced_hash]},
+          {DosProj3, [String.to_atom("#{sliced_hash}"), sliced_hash,pid2]},
           id: String.to_atom("#{sliced_hash}")
         )
       end)
@@ -273,7 +275,7 @@ defmodule Application1 do
     # lst
     # |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
 
-    # # Start scheduled process for fix_finger_table
+    # Start scheduled process for fix_finger_table
     0..(num_of_nodes - 1)
     |> Enum.to_list()
     |> Enum.each(fn x ->  Process.send_after(Enum.at(lst, x), :fix_finger_table, 1_000) end)
@@ -283,26 +285,43 @@ defmodule Application1 do
     # GenServer.cast(Enum.at(lst, 0), {:search, ["abc.mp3", get_sliced_hash("abc.mp3"), 0]})
     # search(lst, "test")
 
-    add_node(supervisor, 774)
-    # add_node(supervisor, 950)
-    add_node(supervisor, 951)
-    add_node(supervisor, 952)
+    add_node(supervisor, 774,pid2)
+    # add_node(supervisor, 950,pid2)
+    add_node(supervisor, 951,pid2)
+    add_node(supervisor, 952,pid2)
 
     lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
     node_values = get_values_from_atoms(lst)
 
     # Start periodic process for search at every node
-    search(lst, num_of_messages)
+  #  search(lst, num_of_messages)
     
-    # fail 576
-    :timer.sleep(10000)
-    fail_node()
+    #fail 576
+   # :timer.sleep(20000)
+  #  fail_node()
 
     lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
     node_values = get_values_from_atoms(lst)
 
-    search(lst, num_of_messages)
+   # search(lst, num_of_messages)
     
 
+  end
+
+  def counter(num_of_nodes,sum) do
+
+    receive do
+      {:hello, hops} ->
+      #  IO.inspect("hops  = #{hops}")
+
+        sum = sum + hops
+        num_of_nodes = num_of_nodes - 1
+
+        if num_of_nodes <= 0 do
+          IO.inspect("sum = #{sum}")
+          Process.exit(self(),:normal)
+        end
+        counter(num_of_nodes, sum)
+  end
   end
 end

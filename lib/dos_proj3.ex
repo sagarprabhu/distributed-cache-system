@@ -3,7 +3,7 @@ defmodule DosProj3 do
   use Bitwise
 
   # External API
-  def start_link([input_name, node_value]) do
+  def start_link([input_name, node_value,pid]) do
     GenServer.start_link(
       __MODULE__,
       %{
@@ -12,7 +12,8 @@ defmodule DosProj3 do
         :successor => [],
         :local_file => [],
         :current_value => node_value,
-        :hops_taken => 0,
+        :hops => 0,
+        :pid => pid
       },
       name: input_name
     )
@@ -87,6 +88,16 @@ defmodule DosProj3 do
     is_file_found = Enum.member?(current_map.local_file, file_name)
 
     # IO.inspect is_file_found
+    {_,updated_map}=
+    if is_file_found do
+      IO.puts("File found in #{hops_taken} hops")
+      IO.inspect(current_map.hops)
+      Map.get_and_update(current_map, :hops, fn x ->
+          {x, hops_taken + x}
+        end)
+      else
+        {:hi,current_map} 
+    end
 
     if not is_file_found do
       # Check for the wrap around
@@ -119,17 +130,11 @@ defmodule DosProj3 do
           {:search, [file_name, key, hops_taken + 1]}
         )
       end
-    else
-      IO.puts("File found in #{hops_taken} hops")
-      {_, current_map} =  Map.get_and_update(current_map, :hops_taken, fn x ->
-          {x, x + hops_taken}
-        end)  
-
       # prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
       # :ets.insert(:global_values, {current_map.current_value, prev_val + hops_taken})
     end
 
-    {:noreply, current_map}
+    {:noreply, updated_map}
   end
 
   def handle_cast({:set_predecessor, node_to_set_as_predecessor}, current_map) do
@@ -179,36 +184,38 @@ defmodule DosProj3 do
 
   # Start search for files from 1..num_of_files
   def handle_info({:start_search, num_of_files, current_file_index}, current_map) do
-
     # Stop if num_of_files have been searched
     if current_file_index <= num_of_files do
       file_to_search = Integer.to_string(current_file_index) <> ".mp3"
+
       GenServer.cast(
-      self(),
-      {:search, [file_to_search, Application1.get_sliced_hash(file_to_search), 0]}
+        self(),
+        {:search, [file_to_search, Application1.get_sliced_hash(file_to_search), 0]}
       )
+
       # IO.inspect current_file_index
       periodic_search(num_of_files, current_file_index + 1)
-    
     else
-      IO.inspect "search finished for #{current_map.current_value}"
+      IO.inspect("search finished for #{current_map.current_value} with #{current_map.hops}")
 
-      prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
-      :ets.insert(:global_values, {current_map.current_value, current_map.hops_taken})
+      send current_map.pid, {:hello , current_map.hops}
+      # prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
+      # :ets.insert(:global_values, {current_map.current_value, current_map.hops_taken})
 
-      remaining_nodes = :ets.lookup_element(:global_values, :counter_remaining_nodes, 2)
-      remaining_nodes = remaining_nodes - 1
-      if remaining_nodes > 0 do
-        :ets.insert(:global_values, {:counter_remaining_nodes, remaining_nodes})
-      else
-        calculate_average()
-      end
+      # remaining_nodes = :ets.lookup_element(:global_values, :counter_remaining_nodes, 2)
+      # remaining_nodes = remaining_nodes - 1
+
+      # if remaining_nodes > 0 do
+      #   :ets.insert(:global_values, {:counter_remaining_nodes, remaining_nodes})
+      # else
+      #   calculate_average()
+      # end
     end
+
     {:noreply, current_map}
   end
 
   defp calculate_average() do
-    
   end
 
   defp periodic_search(num_of_files, current_file_index) do
@@ -216,12 +223,17 @@ defmodule DosProj3 do
   end
 
   def handle_info(:fix_finger_table, current_map) do
-
     num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
 
     # Update successors to include only alive nodes
-    alive_successors = current_map.successor |> Enum.filter(fn x -> Process.whereis(x |> Integer.to_string |> String.to_atom) != nil end)
-    {_, current_map} = Map.get_and_update(current_map, :successor, fn x -> {x, alive_successors} end)
+    alive_successors =
+      current_map.successor
+      |> Enum.filter(fn x ->
+        Process.whereis(x |> Integer.to_string() |> String.to_atom()) != nil
+      end)
+
+    {_, current_map} =
+      Map.get_and_update(current_map, :successor, fn x -> {x, alive_successors} end)
 
     # last_successors_successors = GenServer.call(List.last(current_map.successor) |> Integer.to_string |> String.to_atom,
     #                              :get_successor_list) |> Enum.filter(fn x -> Process.whereis(x |> Integer.to_string |> String.to_atom) != nil end)
@@ -234,28 +246,32 @@ defmodule DosProj3 do
     #     full_list
     #   end
 
-    
     # Get finger table from successor
     universe =
-
       GenServer.call(
         Enum.at(current_map.successor, 0) |> Integer.to_string() |> String.to_atom(),
         :get_finger_table
       )
 
     # Form a universe of all known nodes for this node
-    universe = current_map.successor ++ universe |> Enum.filter(fn x -> Process.whereis(x |> Integer.to_string |> String.to_atom) != nil end)
-    
+    universe =
+      (current_map.successor ++ universe)
+      |> Enum.filter(fn x ->
+        Process.whereis(x |> Integer.to_string() |> String.to_atom()) != nil
+      end)
+
     # Update finger table using the universe as the entire set of nodes in the system
     updated_finger_table =
       0..(length(current_map.finger_table) - 1)
       |> Enum.map(fn x ->
-        value_to_find = rem(current_map.current_value + (1 <<< x), 1 <<< length(current_map.finger_table))
+        value_to_find =
+          rem(current_map.current_value + (1 <<< x), 1 <<< length(current_map.finger_table))
+
         Application1.find_finger(current_map.current_value, value_to_find, universe)
-        end)
+      end)
 
     {_, updated_map} =
-    Map.get_and_update(current_map, :finger_table, fn x -> {x, updated_finger_table} end)
+      Map.get_and_update(current_map, :finger_table, fn x -> {x, updated_finger_table} end)
 
     # IO.inspect current_map
     # IO.puts "fixed fingertable for #{current_map.current_value}"
