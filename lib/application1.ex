@@ -1,7 +1,7 @@
 defmodule Application1 do
   use Application
   use Bitwise
-  @m 10
+  @m 21
 
   # Function to get a sliced hash value based on @m
   # Will take both Integers and Strings and return an integer value of sliced hash
@@ -183,13 +183,13 @@ defmodule Application1 do
     # end
   end
 
-  def fail_node() do
+  def fail_node(lst) do
 
     # Decrease the number of nodes global counter
     global_num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
     :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes + 1})
 
-    send(Process.whereis(:"576"), :kill)
+    send(Enum.at(lst,0), :kill)
     IO.inspect "Failed 576"
     
   end
@@ -288,19 +288,20 @@ defmodule Application1 do
     add_node(supervisor, 951)
     add_node(supervisor, 952)
 
-    lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+    #lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+    lst = get_sorted_nodes(supervisor)
     node_values = get_values_from_atoms(lst)
 
     # Start periodic process for search at every node
     search(lst, num_of_messages)
     
     # fail 576
-    :timer.sleep(10000)
-    fail_node()
+    #:timer.sleep(10000)
+    #fail_node(lst)
 
-    lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+    #lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
+    lst = get_sorted_nodes(supervisor)
     node_values = get_values_from_atoms(lst)
-
     search(lst, num_of_messages)
     
 

@@ -193,16 +193,16 @@ defmodule DosProj3 do
     else
       IO.inspect "search finished for #{current_map.current_value}"
 
-      prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
-      :ets.insert(:global_values, {current_map.current_value, current_map.hops_taken})
+      # prev_val = :ets.lookup_element(:global_values, current_map.current_value, 2)
+      # :ets.insert(:global_values, {current_map.current_value, current_map.hops_taken})
 
-      remaining_nodes = :ets.lookup_element(:global_values, :counter_remaining_nodes, 2)
-      remaining_nodes = remaining_nodes - 1
-      if remaining_nodes > 0 do
-        :ets.insert(:global_values, {:counter_remaining_nodes, remaining_nodes})
-      else
-        calculate_average()
-      end
+      # remaining_nodes = :ets.lookup_element(:global_values, :counter_remaining_nodes, 2)
+      # remaining_nodes = remaining_nodes - 1
+      # if remaining_nodes > 0 do
+      #   :ets.insert(:global_values, {:counter_remaining_nodes, remaining_nodes})
+      # else
+      #   calculate_average()
+      # end
     end
     {:noreply, current_map}
   end
@@ -251,7 +251,7 @@ defmodule DosProj3 do
       0..(length(current_map.finger_table) - 1)
       |> Enum.map(fn x ->
         value_to_find = rem(current_map.current_value + (1 <<< x), 1 <<< length(current_map.finger_table))
-        Application1.find_finger(current_map.current_value, value_to_find, universe)
+        Application1.find_immediate_successor(value_to_find, universe)
         end)
 
     {_, updated_map} =
