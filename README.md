@@ -1,21 +1,19 @@
-# DosProj3
+### DOS Project 3: Chord P2P network
 
-**TODO: Add description**
+## Groups Members
+Sagar Prabhu(UFID 8915-4951) and Siddesh Gupte(UFID 2975-1118)
 
-## Installation
+## Instructions
+* To run the project, first enter into the elixir interactive shell using: *iex -S mix*
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `dos_proj3` to your list of dependencies in `mix.exs`:
+* Then type: *Application1.start(:abc,numNodes, numRequests)*
+  For example: *Application1.start(:abc,100,10)*
 
-```elixir
-def deps do
-  [
-    {:dos_proj3, "~> 0.1.0"}
-  ]
-end
-```
+* The program will output the average number of hops taken in case of no failure and one in case of failure.
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/dos_proj3](https://hexdocs.pm/dos_proj3).
+## What is working
+We have implemented all the functionalities of the Chord network, as described in the paper, like routing, addition of node, deletion of node, stabilization, etc.   
+
+## Largest network
+We tested the program with 1000 nodes.
 
