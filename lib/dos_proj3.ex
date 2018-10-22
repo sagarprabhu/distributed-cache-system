@@ -249,6 +249,7 @@ defmodule DosProj3 do
     #   else
     #     full_list
     #   end
+    # 
 
     # Get finger table from successor
     universe =

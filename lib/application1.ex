@@ -284,8 +284,6 @@ defmodule Application1 do
     # make_file(["abc.mp3"], node_values)
     # make_file(["test"], node_values)
 
-    # # Check states for Debugging
-
     # lst
     # |> Enum.each(fn x -> GenServer.cast(x, {:print_state}) end)
 
