@@ -168,33 +168,41 @@ defmodule Application1 do
   end
 
   def main(args \\ []) do
-    Application1.start(
-      :abc,
-      String.to_integer(Enum.at(args, 0)),
-      String.to_integer(Enum.at(args, 1))
-    )
+    # Application1.start(
+    #   :abc,
+    #   String.to_integer(Enum.at(args, 0)),
+    #   String.to_integer(Enum.at(args, 1))
+    # )
 
     # receive do
     #     {:hi, message} -> IO.puts message
     # end
   end
 
-  def fail_node(lst) do
+  def fail_node(lst, num_of_nodes_to_fail) do
+
     # Decrease the number of nodes global counter
     global_num_of_nodes = :ets.lookup_element(:global_values, :num_of_nodes, 2)
-    :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes - 1})
+    :ets.insert(:global_values, {:num_of_nodes, global_num_of_nodes - num_of_nodes_to_fail })
 
-    send(Process.whereis(Enum.at(lst, 0)), :kill)
-    IO.inspect("Failing Node #{Enum.at(lst, 0)}")
+    0..(num_of_nodes_to_fail - 1)
+    |> Enum.to_list()
+    |> Enum.each(fn x ->
+      send(Process.whereis(Enum.at(lst, x)), :kill)
+      IO.inspect("Failing Node #{Enum.at(lst, x)}")  
+    end)
+
   end
 
-  def start(_type, num_of_nodes, num_of_messages) do
+  def start(_type, num_of_nodes, num_of_messages , failure_percent) do
     # Create new table named global values for storing the number of nodes
     :ets.new(:global_values, [:named_table])
     :ets.insert(:global_values, {:num_of_nodes, num_of_nodes})
+   
+    num_of_nodes_to_fail = div(failure_percent*num_of_nodes,100) |> trunc()
 
     # Start counter process
-    {_, pid2} = Task.start_link(__MODULE__, :counter, [num_of_nodes, 0, self(), num_of_nodes])
+    {_, pid2} = Task.start_link(__MODULE__, :counter, [num_of_nodes, 0, self(), num_of_nodes - num_of_nodes_to_fail])
 
     children =
       0..(10 - 1)
@@ -210,6 +218,7 @@ defmodule Application1 do
 
     opts = [strategy: :one_for_one, name: Supervisor]
     {:ok, supervisor} = Supervisor.start_link(children, opts)
+    
 
     # List of all Nodes in a sorted order
     # Need sorting to maintain order in the ring
@@ -314,7 +323,7 @@ defmodule Application1 do
 
 
     # fail 1st node in the list
-    fail_node(lst)
+    fail_node(lst,num_of_nodes_to_fail)
     :timer.sleep(1000)
 
     #lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
@@ -342,7 +351,7 @@ defmodule Application1 do
 
         if count <= 0 do
           send(pid, {:finished, sum})
-          counter(num_of_nodes - 1, 0, pid, num_of_nodes)
+          counter(num_of_nodes, 0, pid, num_of_nodes)
         else
           counter(count, sum, pid, num_of_nodes)
         end
