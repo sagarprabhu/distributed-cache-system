@@ -268,9 +268,11 @@ defmodule DosProj3 do
     updated_finger_table =
       0..(length(current_map.finger_table) - 1)
       |> Enum.map(fn x ->
-        value_to_find = rem(current_map.current_value + (1 <<< x), 1 <<< length(current_map.finger_table))
+        value_to_find =
+          rem(current_map.current_value + (1 <<< x), 1 <<< length(current_map.finger_table))
+
         Application1.find_immediate_successor(value_to_find, universe)
-        end)
+      end)
 
     {_, updated_map} =
       Map.get_and_update(current_map, :finger_table, fn x -> {x, updated_finger_table} end)

@@ -15,5 +15,5 @@ Sagar Prabhu(UFID 8915-4951) and Siddesh Gupte(UFID 2975-1118)
 We have implemented all the functionalities of the Chord network, as described in the paper, like routing, addition of node, deletion of node, stabilization, etc.   
 
 ## Largest network
-We tested the program with 1000 nodes.
+We tested the program with 10000 nodes.
 

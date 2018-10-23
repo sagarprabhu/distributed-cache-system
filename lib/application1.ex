@@ -36,13 +36,9 @@ defmodule Application1 do
     # if n in node_values, do: n, else: find_immediate_successor(rem(n + 1, 1 <<< @m), node_values)
 
     # Non-recursive way (using filter and min_by)
-    if n > Enum.at(node_values, -1) do
-      Enum.at(node_values, 0)
-    else
-      node_values
+    node_values
       |> Enum.filter(fn x -> x > n end)
-      |> Enum.min_by(fn x -> x - n end, fn -> nil end)
-    end
+      |> Enum.min_by(fn x -> x - n end, fn -> Enum.at(node_values, 0) end)
   end
 
   # Function to store a file in the network
@@ -79,7 +75,7 @@ defmodule Application1 do
     )
 
     # Check the new supervisor children list
-    IO.inspect(Supervisor.which_children(supervisor))
+    #IO.inspect(Supervisor.which_children(supervisor))
 
     # sorted node values
     node_values = get_sorted_nodes(supervisor) |> get_values_from_atoms
@@ -91,7 +87,7 @@ defmodule Application1 do
       immediate_successor_integer |> Integer.to_string() |> String.to_atom()
 
     successors_predecessor_integer = GenServer.call(immediate_successor_atom, :get_predecessor)
-    IO.inspect("test #{successors_predecessor_integer}")
+    #IO.inspect("test #{successors_predecessor_integer}")
 
     successors_predecessor_atom =
       successors_predecessor_integer |> Integer.to_string() |> String.to_atom()
@@ -196,10 +192,12 @@ defmodule Application1 do
     # Create new table named global values for storing the number of nodes
     :ets.new(:global_values, [:named_table])
     :ets.insert(:global_values, {:num_of_nodes, num_of_nodes})
+
+    # Start counter process
     {_, pid2} = Task.start_link(__MODULE__, :counter, [num_of_nodes, 0, self(), num_of_nodes])
 
     children =
-      0..(num_of_nodes - 1)
+      0..(10 - 1)
       |> Enum.to_list()
       |> Enum.map(fn x ->
         sliced_hash = get_sliced_hash(x)
@@ -224,14 +222,14 @@ defmodule Application1 do
     r = trunc(:math.log2(10)) * 2
 
     # Set neighbours
-    0..(num_of_nodes - 1)
+    0..(10 - 1)
     |> Enum.to_list()
     |> Enum.each(fn x ->
       successors =
         1..r
         |> Enum.to_list()
         |> Enum.map(fn curr_r ->
-          Enum.at(lst, rem(x + curr_r, num_of_nodes))
+          Enum.at(lst, rem(x + curr_r, 10))
         end)
         |> Enum.map(fn x -> Atom.to_string(x) end)
         |> Enum.map(fn x -> String.to_integer(x) end)
@@ -244,7 +242,7 @@ defmodule Application1 do
     end)
 
     # Set finger tables
-    0..(num_of_nodes - 1)
+    0..(10 - 1)
     |> Enum.to_list()
     |> Enum.map(fn x ->
       finger_table =
@@ -257,23 +255,8 @@ defmodule Application1 do
 
       GenServer.cast(Enum.at(lst, x), {:set_finger_table, finger_table})
     end)
-
-    # if num_of_nodes>10 do
-    #   11..num_of_nodes
-    #   |> Enum.to_list()
-    #   |> Enum.map( fn x ->
-    #     :timer.sleep(750)
-    #     add_node(supervisor,get_sliced_hash(x),pid2)
-    #   end
-    #   )
-    # end 
-
-    # lst = get_sorted_nodes(supervisor)
-    # # list to hold node values as integers for find_successor, closest_preceding_node functions
-    # node_values = get_values_from_atoms(lst) 
-
-    # IO.inspect("node values final #{lst}")
-    :timer.sleep(1000)
+  
+  
 
     #  Store files from 0.mp3 to <num_of_messages>.mp3
     #  The nodes will fetch every file once
@@ -295,6 +278,27 @@ defmodule Application1 do
     # add_node(supervisor, 950,pid2)
     add_node(supervisor, 951,pid2)
     add_node(supervisor, 952,pid2)
+    
+    if num_of_nodes>10 do
+      11..num_of_nodes
+      |> Enum.to_list()
+      |> Enum.map( fn x ->
+     #  :timer.sleep(500)
+        add_node(supervisor,get_sliced_hash(x),pid2)
+      end
+      )
+    end 
+
+    lst = get_sorted_nodes(supervisor)
+    # list to hold node values as integers for find_successor, closest_preceding_node functions
+    node_values = get_values_from_atoms(lst) 
+
+   # Start scheduled process for fix_finger_table
+   0..(num_of_nodes - 1)
+   |> Enum.to_list()
+   |> Enum.each(fn x ->  Process.send_after(Enum.at(lst, x), :fix_finger_table, 1_000) end)
+   # IO.inspect("node values final #{lst}")
+   :timer.sleep(10000)
 
     #lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
     lst = get_sorted_nodes(supervisor)
@@ -308,13 +312,10 @@ defmodule Application1 do
         IO.inspect("Job1 Avg hops = #{sum / (num_of_nodes * num_of_messages)}")
     end
 
-    # Start scheduled process for fix_finger_table
-    0..(num_of_nodes - 1)
-       |> Enum.to_list()
-       |> Enum.each(fn x ->  Process.send_after(Enum.at(lst, x), :fix_finger_table, 1_000) end)
-    # fail 576
+
+    # fail 1st node in the list
     fail_node(lst)
-    :timer.sleep(10000)
+    :timer.sleep(1000)
 
     #lst = lst |> Enum.filter(fn x -> Process.whereis(x) != nil end)
     lst = get_sorted_nodes(supervisor)
